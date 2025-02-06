@@ -222,30 +222,36 @@ class MenuGrabber:
             logger.error(f"Error downloading image {url}: {str(e)}")
             return None
 
-    def save_menu_item(self, item):
+    def save_menu_item(self, item, download_mode='all'):
         """Save a menu item's details and image to its own folder."""
-        # Create folder name from item title
         folder_name = self.slugify(item['title'])
-        folder_path = os.path.join(self.output_dir, folder_name)
-        os.makedirs(folder_path, exist_ok=True)
+        
+        # For flat mode, use output_dir directly
+        if download_mode == 'flat':
+            folder_path = self.output_dir
+        else:
+            # Create subfolder for other modes
+            folder_path = os.path.join(self.output_dir, folder_name)
+            os.makedirs(folder_path, exist_ok=True)
 
-        # Save details to <product-name>_details.txt with UTF-8 encoding
-        details_filename = f"{folder_name}_details.txt"
-        details_path = os.path.join(folder_path, details_filename)
-        with open(details_path, 'w', encoding='utf-8-sig') as f:  # Use utf-8-sig for BOM
-            f.write(f"Başlık: {item['title']}\n\n")
-            if item['description']:
-                f.write(f"Açıklama: {item['description']}\n")
+        # Save details to txt file if not in images-only mode
+        if download_mode not in ['images', 'flat']:
+            details_filename = f"{folder_name}_details.txt"
+            details_path = os.path.join(folder_path, details_filename)
+            with open(details_path, 'w', encoding='utf-8-sig') as f:
+                f.write(f"Başlık: {item['title']}\n\n")
+                if item['description']:
+                    f.write(f"Açıklama: {item['description']}\n")
 
-        # Download image if available
-        if item['image_url']:
+        # Download image if available and not in menu-only mode
+        if item['image_url'] and download_mode != 'menu':
             image_filename = self.download_image(item['image_url'], folder_path, item['title'])
             if image_filename:
                 logger.info(f"Saved image as {image_filename}")
 
         return folder_path
 
-    def run(self):
+    def run(self, download_mode='all'):
         """Main execution method."""
         try:
             # Fetch and parse the webpage
@@ -260,12 +266,22 @@ class MenuGrabber:
             os.makedirs(self.output_dir, exist_ok=True)
 
             # Process each menu item
-            logger.info(f"Found {len(menu_items)} menu items. Starting download...")
+            mode_desc = {
+                'all': 'menu items and images',
+                'images': 'images',
+                'menu': 'menu items',
+                'flat': 'images in single directory'
+            }
+            logger.info(f"Found {len(menu_items)} menu items. Starting download of {mode_desc[download_mode]}...")
+            
             for item in menu_items:
-                folder_path = self.save_menu_item(item)
-                logger.info(f"Saved menu item '{item['title']}' to {folder_path}")
+                folder_path = self.save_menu_item(item, download_mode)
+                if download_mode != 'flat':
+                    logger.info(f"Saved menu item '{item['title']}' to {folder_path}")
+                else:
+                    logger.info(f"Processed menu item '{item['title']}'")
 
-            logger.info("Menu item download complete!")
+            logger.info(f"Download complete for {mode_desc[download_mode]}!")
 
         except Exception as e:
             logger.error(f"An error occurred: {str(e)}")
@@ -275,17 +291,47 @@ def main():
     parser = argparse.ArgumentParser(description='Download menu items from a webpage')
     parser.add_argument('--url', help='URL of the webpage to download menu items from')
     parser.add_argument('--output', help='Output directory for menu items', default='./menu_items')
+    parser.add_argument('--mode', 
+                       choices=['all', 'images', 'menu', 'flat'], 
+                       help='Download mode: all (everything), images (only images), menu (only menu items without images), flat (all images in single directory)')
     
     args = parser.parse_args()
     url = args.url
+    mode = args.mode
 
     # If URL is not provided via command line, ask for it interactively
     if not url:
         url = input("Please enter the webpage URL: ").strip()
 
+    # If mode is not provided, ask for it interactively
+    if not mode:
+        print("\nDownload mode seçin:")
+        print("1. Tüm içerik (menü öğeleri ve resimler)")
+        print("2. Sadece resimler")
+        print("3. Sadece menü öğeleri (resimsiz)")
+        print("4. Düz mod (tüm resimler tek klasörde)")
+        
+        while True:
+            choice = input("\nSeçiminiz (1-4): ").strip()
+            if choice == '1':
+                mode = 'all'
+                break
+            elif choice == '2':
+                mode = 'images'
+                break
+            elif choice == '3':
+                mode = 'menu'
+                break
+            elif choice == '4':
+                mode = 'flat'
+                break
+            else:
+                print("Geçersiz seçim. Lütfen 1, 2, 3 veya 4 girin.")
+
     try:
         grabber = MenuGrabber(url=url, output_dir=args.output)
-        grabber.run()
+        grabber.run(download_mode=mode)
+            
     except Exception as e:
         logger.error(f"Program terminated with error: {str(e)}")
         sys.exit(1)
