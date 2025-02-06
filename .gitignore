@@ -8,3 +8,6 @@ __pycache__/
 
 # Downloads folder
 downloads/
+
+# Menu items folder
+menu_items/
