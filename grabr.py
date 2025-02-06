@@ -36,6 +36,18 @@ class MenuGrabber:
 
     def slugify(self, value):
         """Convert a string to a URL and file system friendly slug."""
+        # Turkish character mappings
+        tr_map = {
+            'ı': 'i', 'İ': 'i', 'ğ': 'g', 'Ğ': 'g',
+            'ü': 'u', 'Ü': 'u', 'ş': 's', 'Ş': 's',
+            'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c'
+        }
+        
+        # Replace Turkish characters
+        for k, v in tr_map.items():
+            value = value.replace(k, v)
+            
+        # Then normalize
         value = unicodedata.normalize('NFKD', value)
         value = value.encode('ascii', 'ignore').decode('ascii')
         value = re.sub(r'[^\w\s-]', '', value).strip().lower()
@@ -217,12 +229,13 @@ class MenuGrabber:
         folder_path = os.path.join(self.output_dir, folder_name)
         os.makedirs(folder_path, exist_ok=True)
 
-        # Save details to <product-name>_details.txt
+        # Save details to <product-name>_details.txt with UTF-8 encoding
         details_filename = f"{folder_name}_details.txt"
         details_path = os.path.join(folder_path, details_filename)
-        with open(details_path, 'w', encoding='utf-8') as f:
+        with open(details_path, 'w', encoding='utf-8-sig') as f:  # Use utf-8-sig for BOM
             f.write(f"Başlık: {item['title']}\n\n")
-            f.write(f"Açıklama: {item['description']}\n")
+            if item['description']:
+                f.write(f"Açıklama: {item['description']}\n")
 
         # Download image if available
         if item['image_url']:
